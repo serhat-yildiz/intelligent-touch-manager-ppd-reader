@@ -77,12 +77,29 @@ class PPDRawParser:
         daire_line = lines[6]  # 0-indexed, satır 7 = satır 6
         all_columns = [x.strip() for x in daire_line.split(';')]
         
-        # Tüm sütunlardan daire/alan adlarını al
+        # Tüm sütunlardan daire/alan adlarını al - KESIN MATCH (7 != 70, 7 != 7D vb.)
         daire_names = []
         daire_column_indices = []  # Orijinal dosyadaki hangi sütun indexi
         
         for col_idx, col_name in enumerate(all_columns):  # Baştan başla, index 0'dan
-            if col_name and any(x in col_name.upper() for x in ['DAIRE', 'LOBI', 'YONETIM', 'FITNESS', 'RES', 'BAYBAYAN', 'MUTFAK', 'P.O']):
+            col_upper = col_name.upper().strip()
+            
+            # "DAIRE X" formatında ve KESIN MATCH
+            if col_upper.startswith('DAIRE '):
+                # DAIRE numarasını çıkar (DAIRE 7A -> "7A")
+                daire_num_part = col_upper.replace('DAIRE ', '').strip()
+                
+                # Geçerli formatlar: DAIRE 1-80 (ve alt birimleri A,B,C,D,E,F)
+                # Örn: DAIRE 7, DAIRE 7A, DAIRE 7B, DAIRE 7C, ... ama NOT DAIRE 70
+                import re
+                match = re.match(r'^(\d+)([A-F])?$', daire_num_part)
+                if match:
+                    daire_no = int(match.group(1))
+                    # Sadece 1-80 arası daireleri al (70+ değil, 7 ve alt birimler yes)
+                    if 1 <= daire_no <= 80:
+                        daire_names.append(col_name)
+                        daire_column_indices.append(col_idx)
+            elif any(x in col_upper for x in ['LOBI', 'YONETIM', 'FITNESS', 'RES', 'BAYBAYAN', 'MUTFAK', 'P.O']):
                 daire_names.append(col_name)
                 daire_column_indices.append(col_idx)
         

@@ -24,29 +24,39 @@ class KlimaGUI:
         self.root.geometry("1000x750")
         self.root.minsize(800, 600)
         
-        # Tema ayarları
-        style = ttk.Style()
-        style.theme_use('clam')
-        
-        # Renkler
-        self.bg_color = "#f5f5f5"
-        self.header_color = "#1F4E78"
-        self.accent_color = "#4472C4"
-        self.success_color = "#70AD47"
-        self.error_color = "#ED7D31"
-        
-        self.root.configure(bg=self.bg_color)
-        
-        # Font ayarları
+        # Font ayarları (Tema ayarlarından önce tanımla)
         self.title_font = ("Segoe UI", 16, "bold")
         self.header_font = ("Segoe UI", 12, "bold")
         self.normal_font = ("Segoe UI", 10)
         self.mono_font = ("Consolas", 9)
         
+        # Tema ayarları
+        style = ttk.Style()
+        style.theme_use('alt')  # Daha kontrol edilebilir theme
+        
+        # Modern Minimalist Renk Şeması - Siyah Beyaz
+        self.bg_color = "#ffffff"          # Temiz beyaz arka plan
+        self.header_color = "#000000"      # Siyah başlık
+        self.accent_color = "#000000"      # Siyah vurgu
+        self.success_color = "#000000"     # Siyah
+        self.error_color = "#cc0000"       # Koyu kırmızı (sadece hata için)
+        
+        # TTK Style tanımlamaları - Siyah Beyaz (Minimalist)
+        style.configure('TFrame', background=self.bg_color)
+        style.configure('TLabel', background=self.bg_color, foreground="#000000")
+        style.configure('TLabelframe', background=self.bg_color, foreground="#000000")
+        style.configure('TLabelframe.Label', background=self.bg_color, foreground="#000000", font=self.header_font)
+        style.configure('TButton', background="#f0f0f0", foreground="#000000")
+        style.map('TButton', 
+                  background=[('active', '#e0e0e0'), ('pressed', '#d0d0d0')])
+        style.configure('TNotebook', background=self.bg_color)
+        style.configure('TNotebook.Tab', background=self.bg_color)
+        
+        self.root.configure(bg=self.bg_color)
+        
         self.parser = PPDRawParser()
         self.selected_file = None
         self.ppd_df = None
-        self.sayac_data = None
         
         self.create_ui()
     
@@ -58,12 +68,12 @@ class KlimaGUI:
         
         # Tab 1: Ana İşlem
         self.tab_main = ttk.Frame(self.notebook)
-        self.notebook.add(self.tab_main, text="📊 Rapor Oluştur")
+        self.notebook.add(self.tab_main, text="Rapor Oluştur")
         self.create_main_tab()
         
         # Tab 2: Hakkında
         self.tab_about = ttk.Frame(self.notebook)
-        self.notebook.add(self.tab_about, text="ℹ️ Hakkında")
+        self.notebook.add(self.tab_about, text="Hakkında")
         self.create_about_tab()
     
     def create_main_tab(self):
@@ -76,13 +86,13 @@ class KlimaGUI:
         title_label.pack(pady=(0, 20))
         
         # Dosya Seçimi Bölümü
-        file_frame = ttk.LabelFrame(main_frame, text="1️⃣ Dosya Seçimi", padding=15)
+        file_frame = ttk.LabelFrame(main_frame, text="1. Dosya Seçimi", padding=15)
         file_frame.pack(fill="x", pady=10)
         
         file_btn_frame = ttk.Frame(file_frame)
         file_btn_frame.pack(fill="x", pady=10)
         
-        self.btn_browse = ttk.Button(file_btn_frame, text="📁 PPD Dosyası Seç", 
+        self.btn_browse = ttk.Button(file_btn_frame, text="Dosya Seç", 
                                       command=self.select_file)
         self.btn_browse.pack(side="left", padx=5)
         
@@ -91,19 +101,15 @@ class KlimaGUI:
         self.file_label.pack(side="left", padx=20)
         
         # İşlem Bölümü
-        process_frame = ttk.LabelFrame(main_frame, text="2️⃣ İşlem", padding=15)
+        process_frame = ttk.LabelFrame(main_frame, text="2. İşlem", padding=15)
         process_frame.pack(fill="x", pady=10)
         
         btn_frame = ttk.Frame(process_frame)
         btn_frame.pack(fill="x", pady=10)
         
-        self.btn_process = ttk.Button(btn_frame, text="▶ Standart Rapor", 
+        self.btn_process = ttk.Button(btn_frame, text="Rapor Oluştur", 
                                        command=self.process_file, state="disabled")
         self.btn_process.pack(side="left", padx=5)
-        
-        self.btn_sayac = ttk.Button(btn_frame, text="▶ Sayaç Formatı", 
-                                     command=self.process_sayac, state="disabled")
-        self.btn_sayac.pack(side="left", padx=5)
         
         # Durumu göster
         status_frame = ttk.Frame(process_frame)
@@ -115,7 +121,7 @@ class KlimaGUI:
         self.status_label.pack(side="left", padx=10)
         
         # İşlem Günlüğü
-        log_frame = ttk.LabelFrame(main_frame, text="3️⃣ İşlem Günlüğü", padding=10)
+        log_frame = ttk.LabelFrame(main_frame, text="3. İşlem Günlüğü", padding=10)
         log_frame.pack(fill="both", expand=True, pady=10)
         
         self.log_text = scrolledtext.ScrolledText(log_frame, height=15, 
@@ -182,7 +188,7 @@ tasarlanmıştır.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📊 ÇIKTI DOSYALARI
+ÇIKTI DOSYALARI
 
 Program iki formatta rapor oluşturur:
 
@@ -191,21 +197,14 @@ Program iki formatta rapor oluşturur:
    • Klima_01_2026_Tüketim.xlsx - Excel formatı (grafik ve analiz için)
    
    İçerik:
-   - Daire ismi (ESKİ_NUMARA, YENİ NUMARA)
+   - Daire ismi
    - Tüketim (Wh ve kWh cinsinden)
    - Daire türü (SÜİT / ORTAK)
    - İstatistikler (toplam, ortalama, min, max)
 
-2. SAYAÇ OKUMALARI FORMATINDA:
-   • Klima_01_2026_SAYAÇ_OKUMALARI.xlsx
-   • Şubat sayaç verilerine eşleştirilmiş format
-   - Eski numara / Yeni numara
-   - Durum (SÜİT / FOLKART / ORTAK)
-   - PPD hesaplanan tüketim değerleri
-
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🔍 ÖRNEK HESAPLAMA
+ÖRNEK HESAPLAMA
 
 Daire 1 (1A + 1B):
   • DAIRE 1A: 18.092 kWh
@@ -221,29 +220,27 @@ Her saat için:
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-⚡ TEMEL ÖZELLIKLER
+TEMEL ÖZELLIKLER
 
-✓ Otomatik daire gruplandırması
-✓ Çoklu formatta çıktı (CSV + Excel)
-✓ Daire sıralama desteği
-✓ Eski-Yeni numara eşleştirmesi (Ekim.csv)
-✓ Sayaç formatı entegrasyonu
-✓ Detaylı istatistikler
-✓ Hızlı ve güvenilir hesaplama
+- Otomatik daire gruplandırması
+- Çoklu formatta çıktı (CSV + Excel)
+- Daire sıralama desteği
+- Detaylı istatistikler
+- Hızlı ve güvenilir hesaplama
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📝 KULLANMA ADIMLARI
+KULLANMA ADIMLARI
 
-1. "📁 PPD Dosyası Seç" butonuna tıklayın
+1. "Dosya Seç" butonuna tıklayın
 2. PPD CSV dosyasını seçin (PPD_01012026_25022026.csv gibi)
-3. "▶ Standart Rapor" veya "▶ Sayaç Formatı" seçin
+3. "Rapor Oluştur" butonuna tıklayın
 4. Raporlar çalışma dizinine kaydedilecektir
 5. İstatistikleri günlükten kontrol edin
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-👨‍💻 TEKNIK BİLGİLER
+TEKNIK BİLGİLER
 
 Yazılım: Python 3.10+
 Kütüphaneler: pandas, openpyxl
@@ -269,8 +266,7 @@ GitHub: https://github.com/serhat-yildiz/intelligent-touch-manager-ppd-reader
             self.selected_file = file_path
             self.file_label.config(text=Path(file_path).name, foreground="green")
             self.btn_process.config(state="normal")
-            self.btn_sayac.config(state="normal")
-            self.log(f"✓ Dosya seçildi: {Path(file_path).name}\n")
+            self.log(f"[OK] Dosya seçildi: {Path(file_path).name}\n")
     
     def process_file(self):
         """PPD dosyasını standart formatta işle"""
@@ -289,13 +285,13 @@ GitHub: https://github.com/serhat-yildiz/intelligent-touch-manager-ppd-reader
     def _process_standard(self):
         """Standart rapor işleme"""
         try:
-            self.log("📂 PPD dosyası okunuyor...\n")
+            self.log("[*] PPD dosyası okunuyor...\n")
             
             import re
             
             # PPD parse et
             self.ppd_df = self.parser.parse_ppd_file(self.selected_file)
-            self.log(f"✓ {len(self.ppd_df)} alan verisi işlendi\n")
+            self.log(f"[OK] {len(self.ppd_df)} alan verisi işlendi\n")
             
             # Tarih bilgisini filename'den çıkar
             filename = Path(self.selected_file).name
@@ -307,13 +303,13 @@ GitHub: https://github.com/serhat-yildiz/intelligent-touch-manager-ppd-reader
             else:
                 month_year = "RAPOR"
             
-            self.log(f"📊 {month_year} raporu oluşturuluyor...\n")
+            self.log(f"[*] {month_year} raporu oluşturuluyor...\n")
             
             # Özet oluştur ve export et
             summary = self.parser.create_summary(self.ppd_df)
             self.parser.export_results(self.ppd_df, summary, month_year)
             
-            self.log("✓ Standart rapor başarıyla oluşturuldu!\n")
+            self.log("[OK] Standart rapor başarıyla oluşturuldu!\n")
             
             # İstatistikler
             self.log("\n📈 İSTATİSTİKLER:\n")
@@ -323,92 +319,20 @@ GitHub: https://github.com/serhat-yildiz/intelligent-touch-manager-ppd-reader
                 else:
                     self.log(f"   • {key}: {value}\n")
             
-            self.log("\n✅ TAMAMLANDI!\n")
-            self.status_label.config(text="Tamamlandı ✓", foreground="green")
+            self.log("\n[DONE] TAMAMLANDI!\n")
+            self.status_label.config(text="Tamamlandı", foreground="black")
             
             csv_file = f"Klima_{month_year}_Tüketim.csv"
             xlsx_file = f"Klima_{month_year}_Tüketim.xlsx"
-            messagebox.showinfo("Başarılı", f"Rapor oluşturuldu!\n\n✓ {csv_file}\n✓ {xlsx_file}")
+            messagebox.showinfo("Başarılı", f"Rapor oluşturuldu!\n\n- {csv_file}\n- {xlsx_file}")
             
         except Exception as e:
-            self.log(f"\n❌ HATA: {str(e)}\n")
-            self.status_label.config(text="Hata!", foreground="red")
+            self.log(f"\n[ERROR] HATA: {str(e)}\n")
+            self.status_label.config(text="Hata!", foreground="#cc0000")
             messagebox.showerror("Hata", f"İşlem başarısız:\n{str(e)}")
         
         finally:
             self.btn_process.config(state="normal")
-    
-    def process_sayac(self):
-        """Şubat sayaç formatında işle"""
-        if not self.selected_file:
-            messagebox.showwarning("Uyarı", "Lütfen bir PPD dosyası seçin!")
-            return
-        
-        self.btn_sayac.config(state="disabled")
-        self.status_label.config(text="Sayaç Formatı İşleniyor...", foreground="orange")
-        self.log_text.delete("1.0", tk.END)
-        
-        thread = threading.Thread(target=self._process_sayac_thread)
-        thread.daemon = True
-        thread.start()
-    
-    def _process_sayac_thread(self):
-        """Sayaç formatı işleme"""
-        try:
-            self.log("📂 PPD dosyası okunuyor...\n")
-            
-            import re
-            
-            # PPD'yi parse et
-            self.ppd_df = self.parser.parse_ppd_file(self.selected_file)
-            self.log(f"✓ {len(self.ppd_df)} alan PPD verisi işlendi\n")
-            
-            # Şubat sayaç Excel dosyasını bul
-            selected_dir = Path(self.selected_file).parent
-            sayac_file = selected_dir / "Şubat Klima Sayaç Okumaları.xlsx"
-            
-            if not sayac_file.exists():
-                self.log(f"❌ Hata: Sayaç dosyası bulunamadı!\n")
-                self.status_label.config(text="Sayaç dosyası bulunamadı!", foreground="red")
-                messagebox.showerror("Hata", f"Dosya bulunamadı:\n{sayac_file}")
-                return
-            
-            self.log(f"📊 Şubat Sayaç Okumaları yükleniyor...\n")
-            
-            # Sayaç verisini yükle
-            self.sayac_data = self.parser.load_subat_sayac_data(str(sayac_file))
-            self.log(f"✓ {len(self.sayac_data)} daire sayaç verisi yüklendi\n")
-            
-            # Tarih bilgisini PPD dosyasından çıkar
-            filename = Path(self.selected_file).name
-            match = re.search(r'(\d{2})(\d{2})(\d{4})_(\d{2})(\d{2})(\d{4})', filename)
-            if match:
-                end_month = int(match.groups()[1])
-                end_year = match.groups()[2]
-                month_year = f"{end_month}_{end_year}"
-            else:
-                month_year = "01_2026"
-            
-            self.log(f"📋 Sayaç formatı raporu oluşturuluyor...\n")
-            
-            # Sayaç formatında export et
-            sayac_xlsx = self.parser.export_sayac_format(self.ppd_df, self.sayac_data, month_year)
-            
-            self.log("✓ Sayaç formatı raporu başarıyla oluşturuldu!\n")
-            self.log(f"\n✅ TAMAMLANDI!\n")
-            self.status_label.config(text="Tamamlandı ✓", foreground="green")
-            
-            messagebox.showinfo("Başarılı", f"Sayaç Formatı Raporu oluşturuldu!\n\n✓ {sayac_xlsx}")
-            
-        except Exception as e:
-            self.log(f"\n❌ HATA: {str(e)}\n")
-            import traceback
-            self.log(traceback.format_exc())
-            self.status_label.config(text="Hata!", foreground="red")
-            messagebox.showerror("Hata", f"İşlem başarısız:\n{str(e)}")
-        
-        finally:
-            self.btn_sayac.config(state="normal")
     
     def log(self, message):
         """Mesajı log alanına ekle"""
