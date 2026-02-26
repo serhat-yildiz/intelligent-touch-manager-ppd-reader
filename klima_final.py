@@ -77,12 +77,11 @@ class PPDRawParser:
         daire_line = lines[6]  # 0-indexed, satır 7 = satır 6
         all_columns = [x.strip() for x in daire_line.split(';')]
         
-        # İlk sütun (index 0) tarih/saat olduğu için atla
-        # Geri kalan sütunlardan daire/alan adlarını al
+        # Tüm sütunlardan daire/alan adlarını al
         daire_names = []
         daire_column_indices = []  # Orijinal dosyadaki hangi sütun indexi
         
-        for col_idx, col_name in enumerate(all_columns[1:], start=1):  # 1'den başla (0'ı atla)
+        for col_idx, col_name in enumerate(all_columns):  # Baştan başla, index 0'dan
             if col_name and any(x in col_name.upper() for x in ['DAIRE', 'LOBI', 'YONETIM', 'FITNESS', 'RES', 'BAYBAYAN', 'MUTFAK', 'P.O']):
                 daire_names.append(col_name)
                 daire_column_indices.append(col_idx)

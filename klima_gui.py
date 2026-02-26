@@ -151,7 +151,7 @@ class KlimaGUI:
                 else:
                     self.log("⚠ Numara eşleşmesi yüklenemedi\n")
             else:
-                self.log("⚠ Ekim.csv dosyası bulunamadı (eski numaralar gösterilmeyecek)\n")
+                pass  # Ekim.csv zorunlu değil
             
             df = self.parser.parse_ppd_file(self.selected_file)
             self.log(f"✓ {len(df)} alan okumalı verisi bulundu\n")
@@ -161,14 +161,13 @@ class KlimaGUI:
             filename = Path(self.selected_file).name
             date_info = self.parser.parse_dates_from_filename(filename) if hasattr(self.parser, 'parse_dates_from_filename') else None
             
-            # Tarih bilgisini al
+            # Tarih bilgisini al - sadece sayı formatında (ay_yıl)
             match = re.search(r'(\d{2})(\d{2})(\d{4})_(\d{2})(\d{2})(\d{4})', filename)
             if match:
                 end_month, end_year = match.groups()[1], match.groups()[2]
-                month_name = self.parser.months_tr.get(int(end_month), str(end_month))
-                month_year = f"{month_name} / {end_year}"
+                month_year = f"{end_month}_{end_year}"  # Sadece 01_2026 formatı
             else:
-                month_year = "AYLIK RAPOR"
+                month_year = "RAPOR"
             
             output_file = f"Klima_{month_year.replace(' / ', '_')}_Tüketim.csv"
             excel_file = output_file.replace('.csv', '.xlsx')
