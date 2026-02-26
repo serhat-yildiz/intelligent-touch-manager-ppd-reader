@@ -205,16 +205,19 @@ class PPDRawParser:
         """CSV ve Excel'e kaydet"""
         # Daire sırasını uygula
         if len(self.daire_sirasi) > 0:
-            # Daire sırasına göre sort et
+            # Daire sırasına göre sort et (sadece integer daireler)
             df_sorted = pd.DataFrame()
             for daire_no in self.daire_sirasi:
                 daire_match = df[df['DAİRE_NO'] == daire_no]
                 if len(daire_match) > 0:
                     df_sorted = pd.concat([df_sorted, daire_match], ignore_index=True)
             
-            # Kalanları (sırada olmayan) sonuna ekle
+            # Kalanları (sırada olmayan - ORTAK alanlar) sonuna ekle
             used_daires = set(self.daire_sirasi)
             df_remaining = df[~df['DAİRE_NO'].isin(used_daires)]
+            # ORTAK alanları isme göre sırala
+            if len(df_remaining) > 0:
+                df_remaining = df_remaining.sort_values('DAİRE_ADI').reset_index(drop=True)
             df = pd.concat([df_sorted, df_remaining], ignore_index=True)
         
         # Dosya adı - "/" karakterini "_" ile değiştir (Windows uyumluluğu)
