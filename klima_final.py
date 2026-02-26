@@ -20,6 +20,21 @@ class PPDRawParser:
             9: "EYLÜL", 10: "EKİM", 11: "KASIM", 12: "ARALIK"
         }
         self.numara_mapping = {}  # YENİ -> ESKİ mapping
+        self.daire_sirasi = []  # Daire okuma sırası
+        self.load_daire_sirasi()
+    
+    def load_daire_sirasi(self):
+        """Daire sırası dosyasını yükle"""
+        try:
+            sira_file = Path(__file__).parent / "daire_sirasi.txt"
+            if sira_file.exists():
+                with open(sira_file, 'r', encoding='utf-8') as f:
+                    self.daire_sirasi = [int(line.strip()) for line in f if line.strip()]
+                print(f"✓ Daire sırası yüklendi ({len(self.daire_sirasi)} daire)")
+            else:
+                print("⚠ daire_sirasi.txt dosyası bulunamadı (varsayılan sırası kullanılacak)")
+        except Exception as e:
+            print(f"⚠ Daire sırası yüklenemedi: {e}")
     
     def load_numara_mapping(self, ekim_file):
         """Ekim dosyasından ESKİ -> YENİ numara eşleşmesini yükle"""
@@ -189,12 +204,24 @@ class PPDRawParser:
     
     def export_results(self, df, summary, month_year):
         """CSV ve Excel'e kaydet"""
-        # Ay-Yıl klasörü oluştur
-        folder_name = month_year.replace(' / ', '_')
-        Path(folder_name).mkdir(exist_ok=True)
+        # Daire sırasını uygula
+        if len(self.daire_sirasi) > 0:
+            # Daire sırasına göre sort et
+            df_sorted = pd.DataFrame()
+            for daire_no in self.daire_sirasi:
+                daire_match = df[df['DAİRE_NO'] == daire_no]
+                if len(daire_match) > 0:
+                    df_sorted = pd.concat([df_sorted, daire_match], ignore_index=True)
+            
+            # Kalanları (sırada olmayan) sonuna ekle
+            used_daires = set(self.daire_sirasi)
+            df_remaining = df[~df['DAİRE_NO'].isin(used_daires)]
+            df = pd.concat([df_sorted, df_remaining], ignore_index=True)
         
-        csv_file = f"{folder_name}/Klima_{folder_name}_Tüketim.csv"
-        xlsx_file = f"{folder_name}/Klima_{folder_name}_Tüketim.xlsx"
+        # Dosya adı - "/" karakterini "_" ile değiştir (Windows uyumluluğu)
+        safe_filename = month_year.replace(' / ', '_')
+        csv_file = f"Klima_{safe_filename}_Tüketim.csv"
+        xlsx_file = f"Klima_{safe_filename}_Tüketim.xlsx"
         
         # CSV
         print(f"\n💾 CSV kaydediliyor: {csv_file}")
@@ -398,10 +425,9 @@ class PPDRawParser:
         """Sayaç formatında Excel raporu oluştur"""
         print(f"\n💾 Sayaç Formatı Excel kaydediliyor...")
         
-        folder_name = month_year.replace(' / ', '_')
-        Path(folder_name).mkdir(exist_ok=True)
-        
-        xlsx_file = f"{folder_name}/Klima_{folder_name}_SAYAÇ_OKUMALARI.xlsx"
+        # "/" karakterini "_" ile değiştir (Windows uyumluluğu)
+        safe_filename = month_year.replace(' / ', '_')
+        xlsx_file = f"Klima_{safe_filename}_SAYAÇ_OKUMALARI.xlsx"
         
         wb = Workbook()
         ws = wb.active
@@ -460,8 +486,14 @@ class PPDRawParser:
         ws.row_dimensions[row].height = 25
         row += 1
         
-        # Veri satırları - sayac_data'dan sırasıyla yerleştir
-        for daire_no in sorted(sayac_data.keys()):
+        # Veri satırları - daire sırasına göre yerleştir
+        # Sırası olan daireleri önce göster
+        daire_order = self.daire_sirasi if len(self.daire_sirasi) > 0 else sorted(sayac_data.keys())
+        
+        for daire_no in daire_order:
+            if daire_no not in sayac_data:
+                continue
+                
             sayac = sayac_data[daire_no]
             
             # PPD'den gelen tüketimi bul
