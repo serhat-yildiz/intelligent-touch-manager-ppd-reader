@@ -3,22 +3,15 @@ REM Klima Tüketim Raporu - EXE Oluşturma Script
 REM PyInstaller gereklidir: pip install pyinstaller
 
 echo Paketler yükleniyor...
-pip install pyinstaller -q
+".\.venv\Scripts\python.exe" -m pip install --upgrade pip setuptools wheel >nul
+".\.venv\Scripts\python.exe" -m pip install pyinstaller -q
 
 echo.
 echo Klima_TüketimRaporu.exe olusturuluyor...
 echo.
 
-REM PyInstaller komutu - single file, windowed, icon
-pyinstaller --onefile ^
-    --windowed ^
-    --name "Klima_TuketimRaporu" ^
-    --distpath . ^
-    --buildpath build ^
-    --specpath . ^
-    --add-data "klima_final.py:." ^
-    --add-data "daire_sirasi.txt:." ^
-    klima_gui_v3.py
+REM PyInstaller komutu - tek satır ve doğru opsiyonlar kullanılıyor
+".\.venv\Scripts\python.exe" -m PyInstaller --onefile --windowed --name "Klima_TuketimRaporu" --distpath . --workpath build --specpath . --add-data "klima_final.py:." --add-data "daire_sirasi.txt:." klima_gui_v3.py
 
 echo.
 echo BITTI! EXE dosyasi olusturuldu: Klima_TuketimRaporu.exe
