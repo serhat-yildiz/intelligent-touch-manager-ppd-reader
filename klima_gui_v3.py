@@ -57,6 +57,7 @@ class KlimaGUI:
         self.parser = PPDRawParser()
         self.selected_file = None
         self.ppd_df = None
+        self.output_dir = None  # kullanıcı seçimiyle belirlenecek kayıt dizini
         
         self.create_ui()
     
@@ -274,6 +275,16 @@ GitHub: https://github.com/serhat-yildiz/intelligent-touch-manager-ppd-reader
             messagebox.showwarning("Uyarı", "Lütfen bir dosya seçin!")
             return
         
+        # Kaydedilecek klasörü seç
+        self.output_dir = filedialog.askdirectory(
+            title="Raporları kaydetmek için klasör seçin",
+            initialdir=str(Path.home() / "Desktop")
+        )
+        if not self.output_dir:
+            # kullanıcı iptal ettiyse işlemi durdur
+            self.log("[WARNING] Kayıt dizini seçilmedi, işlem iptal edildi.\n")
+            return
+        
         self.btn_process.config(state="disabled")
         self.status_label.config(text="İşleniyor...", foreground="orange")
         self.log_text.delete("1.0", tk.END)
@@ -303,11 +314,13 @@ GitHub: https://github.com/serhat-yildiz/intelligent-touch-manager-ppd-reader
             else:
                 month_year = "RAPOR"
             
-            self.log(f"[*] {month_year} raporu oluşturuluyor...\n")
+            self.log("[*] Rapor oluşturuluyor...\n")
             
             # Özet oluştur ve export et
             summary = self.parser.create_summary(self.ppd_df)
-            self.parser.export_results(self.ppd_df, summary, month_year)
+            csv_file, xlsx_file = self.parser.export_results(
+                self.ppd_df, summary, month_year, output_dir=self.output_dir
+            )
             
             self.log("[OK] Standart rapor başarıyla oluşturuldu!\n")
             
@@ -322,9 +335,9 @@ GitHub: https://github.com/serhat-yildiz/intelligent-touch-manager-ppd-reader
             self.log("\n[DONE] TAMAMLANDI!\n")
             self.status_label.config(text="Tamamlandı", foreground="black")
             
-            csv_file = f"Klima_{month_year}_Tüketim.csv"
-            xlsx_file = f"Klima_{month_year}_Tüketim.xlsx"
-            messagebox.showinfo("Başarılı", f"Rapor oluşturuldu!\n\n- {csv_file}\n- {xlsx_file}")
+            # Dosya adları mesaj için tam yol olarak göster
+            messagebox.showinfo("Başarılı",
+                                f"Rapor oluşturuldu!\n\n- {csv_file}\n- {xlsx_file}")
             
         except Exception as e:
             self.log(f"\n[ERROR] HATA: {str(e)}\n")

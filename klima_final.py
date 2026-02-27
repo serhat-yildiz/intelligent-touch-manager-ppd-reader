@@ -218,8 +218,11 @@ class PPDRawParser:
         
         return summary
     
-    def export_results(self, df, summary, month_year):
-        """CSV ve Excel'e kaydet"""
+    def export_results(self, df, summary, month_year, output_dir=None):
+        """CSV ve Excel'e kaydet
+
+        output_dir: Kullanıcı tarafından seçilen klasör (varsayılan olarak çalışma dizini)
+        """
         # Daire sırasını uygula
         if len(self.daire_sirasi) > 0:
             # Daire sırasına göre sort et (sadece integer daireler)
@@ -237,23 +240,27 @@ class PPDRawParser:
                 df_remaining = df_remaining.sort_values('DAİRE_ADI').reset_index(drop=True)
             df = pd.concat([df_sorted, df_remaining], ignore_index=True)
         
-        # Dosya adı - "/" karakterini "_" ile değiştir (Windows uyumluluğu)
-        safe_filename = month_year.replace(' / ', '_')
-        csv_file = f"Klima_{safe_filename}_Tüketim.csv"
-        xlsx_file = f"Klima_{safe_filename}_Tüketim.xlsx"
+        # Dosya adı - sabit olarak ısıtma_sogutma (Türkçe karakterler yerine ascii)
+        csv_name = "ısıtma_sogutma.csv"
+        xlsx_name = "ısıtma_sogutma.xlsx"
+        
+        # Eğer bir çıkış dizini belirtilmişse ona göre yolu oluştur
+        if output_dir:
+            csv_file = str(Path(output_dir) / csv_name)
+            xlsx_file = str(Path(output_dir) / xlsx_name)
+        else:
+            csv_file = csv_name
+            xlsx_file = xlsx_name
         
         # CSV
         print(f"\n💾 CSV kaydediliyor: {csv_file}")
         with open(csv_file, 'w', encoding='utf-8-sig') as f:
             f.write("FOLKART BLU ÇEŞME YÖNETİMİ\n")
-            f.write(f"{month_year} DÖNEMİ\n")
-            f.write("ISITMA/SOĞUTMA - AYLLIK TÜKETİM RAPORU\n\n")
+            f.write("ISITMA/SOĞUTMA RAPORU\n\n")
         
-        # ESKİ_NUMARA sütununu varsa dahil et
-        if 'ESKİ_NUMARA' in df.columns:
-            df_export = df[['ESKİ_NUMARA', 'DAİRE_ADI', 'DAİRE_NO', 'TİP', 'AYLIK_TUKETIM_WH', 'AYLIK_TUKETIM_KWH']]
-        else:
-            df_export = df[['DAİRE_ADI', 'DAİRE_NO', 'TİP', 'AYLIK_TUKETIM_WH', 'AYLIK_TUKETIM_KWH']]
+        # Sadece DAİRE_ADI, TİP, TÜKETİM WH/KWH sütunlarını dahil et
+        # (DAİRE_NO ve ESKİ_NUMARA kullanıcı tarafından istenmiyor)
+        df_export = df[['DAİRE_ADI', 'TİP', 'AYLIK_TUKETIM_WH', 'AYLIK_TUKETIM_KWH']]
         
         df_export.to_csv(csv_file, mode='a', index=False, encoding='utf-8-sig')
         
@@ -297,25 +304,14 @@ class PPDRawParser:
         
         ws.merge_cells(f'A{row}:{"ABCDEF"[col_count-1]}{row}')
         cell = ws[f'A{row}']
-        cell.value = month_year
+        cell.value = "ISITMA/SOĞUTMA RAPORU"
         cell.font = Font(color="FFFFFF", bold=True, size=12)
-        cell.fill = title_fill
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-        row += 1
-        
-        ws.merge_cells(f'A{row}:{"ABCDEF"[col_count-1]}{row}')
-        cell = ws[f'A{row}']
-        cell.value = "ISITMA/SOĞUTMA - AYLLIK TÜKETİM RAPORU"
-        cell.font = Font(color="FFFFFF", bold=True, size=11)
         cell.fill = title_fill
         cell.alignment = Alignment(horizontal="center", vertical="center")
         row += 2
         
-        # Başlık satırı
-        if 'ESKİ_NUMARA' in df.columns:
-            headers = ['ESKİ NO', 'DAİRE ADI', 'DAİRE NO', 'TİP', 'TÜKETİM (Wh)', 'TÜKETİM (kWh)']
-        else:
-            headers = ['DAİRE ADI', 'DAİRE NO', 'TİP', 'TÜKETİM (Wh)', 'TÜKETİM (kWh)']
+        # Başlık satırı (sadece ad, tip ve tüketim)
+        headers = ['DAİRE ADI', 'TİP', 'TÜKETİM (Wh)', 'TÜKETİM (kWh)']
         
         for col_idx, header in enumerate(headers, 1):
             cell = ws.cell(row=row, column=col_idx)
@@ -330,18 +326,8 @@ class PPDRawParser:
         # Veri satırları
         for _, data_row in df.iterrows():
             col = 1
-            if 'ESKİ_NUMARA' in df.columns:
-                ws.cell(row=row, column=col).value = data_row['ESKİ_NUMARA']
-                ws.cell(row=row, column=col).border = border
-                col += 1
-            
             ws.cell(row=row, column=col).value = data_row['DAİRE_ADI']
             ws.cell(row=row, column=col).border = border
-            col += 1
-            
-            ws.cell(row=row, column=col).value = data_row['DAİRE_NO']
-            ws.cell(row=row, column=col).border = border
-            ws.cell(row=row, column=col).alignment = Alignment(horizontal="center")
             col += 1
             
             ws.cell(row=row, column=col).value = data_row['TİP']
@@ -384,12 +370,11 @@ class PPDRawParser:
             
             row += 1
         
-        ws.column_dimensions['A'].width = 12
-        ws.column_dimensions['B'].width = 20
-        ws.column_dimensions['C'].width = 12
-        ws.column_dimensions['D'].width = 12
-        ws.column_dimensions['E'].width = 18
-        ws.column_dimensions['F'].width = 18
+        # Kolon genişlikleri (sadece 4 kolon)
+        ws.column_dimensions['A'].width = 20
+        ws.column_dimensions['B'].width = 12
+        ws.column_dimensions['C'].width = 18
+        ws.column_dimensions['D'].width = 18
         
         wb.save(xlsx_file)
         
