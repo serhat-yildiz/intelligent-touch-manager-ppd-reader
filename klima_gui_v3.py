@@ -12,8 +12,11 @@ from pathlib import Path
 import sys
 import os
 from datetime import datetime
+from typing import Optional
 
-# Ana modülü import et
+import pandas as pd
+
+# ana modülü çalışma dizinine ekle (paket yapısında gerek kalmayacak)
 sys.path.insert(0, os.path.dirname(__file__))
 from klima_final import PPDRawParser
 
@@ -55,9 +58,9 @@ class KlimaGUI:
         self.root.configure(bg=self.bg_color)
         
         self.parser = PPDRawParser()
-        self.selected_file = None
-        self.ppd_df = None
-        self.output_dir = None  # kullanıcı seçimiyle belirlenecek kayıt dizini
+        self.selected_file: Optional[str] = None
+        self.ppd_df: Optional[pd.DataFrame] = None
+        self.output_dir: Optional[str] = None  # kullanıcı seçimiyle belirlenecek klasör
         
         self.create_ui()
     
@@ -255,43 +258,36 @@ GitHub: https://github.com/serhat-yildiz/intelligent-touch-manager-ppd-reader
         
         about_text.config(state="disabled")
     
-    def select_file(self):
-        """Dosya seçici aç"""
+    def select_file(self) -> None:
+        """Kullanıcının bir PPD CSV dosyası seçmesini sağlar."""
         file_path = filedialog.askopenfilename(
             title="PPD Dosyasını Seçin",
             filetypes=[("CSV Dosyaları", "*.csv"), ("Tüm Dosyalar", "*.*")],
             initialdir=str(Path.home() / "Desktop")
         )
-        
-        if file_path:
-            self.selected_file = file_path
-            self.file_label.config(text=Path(file_path).name, foreground="green")
-            self.btn_process.config(state="normal")
-            self.log(f"[OK] Dosya seçildi: {Path(file_path).name}\n")
+        if not file_path:
+            return
+        self.selected_file = file_path
+        self.file_label.config(text=Path(file_path).name, foreground="green")
+        self.btn_process.config(state="normal")
+        self.log(f"[OK] Dosya seçildi: {Path(file_path).name}\n")
     
-    def process_file(self):
-        """PPD dosyasını standart formatta işle"""
+    def process_file(self) -> None:
+        """Seçilen PPD dosyasını arka planda işler ve raporları kaydeder."""
         if not self.selected_file:
             messagebox.showwarning("Uyarı", "Lütfen bir dosya seçin!")
             return
-        
-        # Kaydedilecek klasörü seç
         self.output_dir = filedialog.askdirectory(
             title="Raporları kaydetmek için klasör seçin",
             initialdir=str(Path.home() / "Desktop")
         )
         if not self.output_dir:
-            # kullanıcı iptal ettiyse işlemi durdur
             self.log("[WARNING] Kayıt dizini seçilmedi, işlem iptal edildi.\n")
             return
-        
         self.btn_process.config(state="disabled")
         self.status_label.config(text="İşleniyor...", foreground="orange")
         self.log_text.delete("1.0", tk.END)
-        
-        thread = threading.Thread(target=self._process_standard)
-        thread.daemon = True
-        thread.start()
+        threading.Thread(target=self._process_standard, daemon=True).start()
     
     def _process_standard(self):
         """Standart rapor işleme"""
@@ -347,8 +343,8 @@ GitHub: https://github.com/serhat-yildiz/intelligent-touch-manager-ppd-reader
         finally:
             self.btn_process.config(state="normal")
     
-    def log(self, message):
-        """Mesajı log alanına ekle"""
+    def log(self, message: str) -> None:
+        """Günlüğe `message` ekler ve arayüzü günceller."""
         self.log_text.insert(tk.END, message)
         self.log_text.see(tk.END)
         self.root.update()

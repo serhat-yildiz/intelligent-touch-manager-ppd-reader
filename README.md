@@ -16,13 +16,15 @@ Folkart Blu Çeşme Yönetim sistemi için PPD (Power Page Display) verilerini a
 
 ### Seçenek 1: EXE (Önerilen - Kolay) ⭐
 
+> Not: Artık exe dosyasına özel **klima.ico** ikonu dahil edilmiştir. Eğer ikonu kendiniz yeniden üretmek isterseniz `make_icon.py` scriptini çalıştırabilirsiniz (`pip install pillow` gerektirir).
+
 ```bash
 # 1. build_exe.bat dosyasını çift tıklayın
 # 2. Veya komut satırından çalıştırın:
 build_exe.bat
 
 # İşlem tamamlandıktan sonra:
-Klima_TuketimRaporu.exe
+Klima_TuketimRaporu.exe   ← Python işareti yerine kendi ikonunuz görünecek
 ```
 
 **Avantajları:**
@@ -160,13 +162,13 @@ Her raporun sonunda:
 
 | Bilgi | Değer |
 |-------|-------|
-| Dil | Python 3.10+ |
+| Dil | Python 3.10+ (tip açıklamaları eklendi) |
 | GUI Framework | tkinter (standart Python) |
-| Veri İşleme | pandas |
+| Veri İşleme | pandas (vektörize edilmiş, parse hızı artırıldı) |
 | Excel Yazma | openpyxl |
-| Build Tool | PyInstaller |
-| Version | 3.0 |
-| Geliştirici | Serhat Yıldız |
+| Build Tool | PyInstaller (ikon desteği, onedir/onefile opsiyonları) |
+| Version | 3.1 (kod refaktör, ikon, performans) |
+| Geliştirici | Serhat Yıldız 
 | Email | ssyldz04@gmail.com |
 
 ## 📝 Sürüm Tarihi

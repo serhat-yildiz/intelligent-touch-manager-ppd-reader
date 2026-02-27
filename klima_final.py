@@ -8,169 +8,143 @@ Folkart Blu Çeşme Yönetimi İçin
 import re
 import csv
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
+
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
 import pandas as pd
 
+# Regex used throughout the parser to identify daire columns
+_DAIRE_COL_REGEX = re.compile(r"^DAIRE\s+(\d+)([A-F])?$", re.IGNORECASE)
+
+# Helper constants for identifying ortak areas
+_ORTAK_KEYWORDS = ['LOBI', 'YONETIM', 'FITNESS', 'MUTFAK', 'P.O', 'BAYBAYAN', 'RES']
+
 class PPDRawParser:
-    def __init__(self):
-        self.months_tr = {
+    """PPD dosyalarını okumak, işlemek ve raporlamak için yardımcı sınıf.
+
+    Tüm girişler pandas DataFrame formatında yönetilir; bu sayede
+    düşük birim sürelerde binlerce satır ayrıştırılabilir.
+    """
+
+    def __init__(self) -> None:
+        # Türkçe ay isimleri (bazı rapor başlıklarında gerekebilir)
+        self.months_tr: Dict[int, str] = {
             1: "OCAK", 2: "ŞUBAT", 3: "MART", 4: "NİSAN",
             5: "MAYIS", 6: "HAZİRAN", 7: "TEMMUZ", 8: "AĞUSTOS",
             9: "EYLÜL", 10: "EKİM", 11: "KASIM", 12: "ARALIK"
         }
-        self.numara_mapping = {}  # YENİ -> ESKİ mapping
-        self.daire_sirasi = []  # Daire okuma sırası
+        self.numara_mapping: Dict[str, str] = {}  # YENİ -> ESKİ mapping
+        self.daire_sirasi: List[int] = []  # Daire okuma sırası
         self.load_daire_sirasi()
     
-    def load_daire_sirasi(self):
-        """Daire sırası dosyasını yükle"""
+    def load_daire_sirasi(self, path: Optional[Union[str, Path]] = None) -> None:
+        """Daire sırasını `daire_sirasi.txt` dosyasından okur.
+
+        Eğer `path` verilirse oradaki dosyayı kullanır; yoksa modül
+        dizinine bakar. Hata durumunda liste boş kalır ve uyarı basılır.
+        """
         try:
-            sira_file = Path(__file__).parent / "daire_sirasi.txt"
+            sira_file = Path(path) if path else Path(__file__).parent / "daire_sirasi.txt"
             if sira_file.exists():
                 with open(sira_file, 'r', encoding='utf-8') as f:
                     self.daire_sirasi = [int(line.strip()) for line in f if line.strip()]
-                print(f"✓ Daire sırası yüklendi ({len(self.daire_sirasi)} daire)")
+                print(f"Daire sırası yüklendi ({len(self.daire_sirasi)} daire)")
             else:
                 print("⚠ daire_sirasi.txt dosyası bulunamadı (varsayılan sırası kullanılacak)")
         except Exception as e:
-            print(f"⚠ Daire sırası yüklenemedi: {e}")
+            print(f"Daire sırası yüklenemedi: {e}")
     
-    def load_numara_mapping(self, ekim_file):
-        """Ekim dosyasından ESKİ -> YENİ numara eşleşmesini yükle"""
+    def load_numara_mapping(self, ekim_file: Union[str, Path]) -> bool:
+        """Ekim formatındaki CSV'den eski-yeni numara haritalamasını alır.
+
+        Dosyada 10. satırdan sonraki veriler içerir. Hata olursa `False`
+        döndürür ve `numara_mapping` aynı kalır.
+        """
         try:
             with open(ekim_file, 'r', encoding='utf-8-sig') as f:
                 reader = csv.reader(f, delimiter=';')
-                data = list(reader)
-            
-            # Satır 10'dan itibaren veri
-            for row in data[9:]:
-                if not row or not row[0].strip():
-                    continue
-                
-                eski_no = row[0].strip()
-                yeni_no = row[1].strip() if len(row) > 1 else ""
-                
-                if eski_no and yeni_no:
-                    self.numara_mapping[yeni_no] = eski_no
-            
-            print(f"✓ {len(self.numara_mapping)} numaralama eşleşmesi yüklendi")
+                for row in list(reader)[9:]:
+                    if len(row) < 2 or not row[0].strip() or not row[1].strip():
+                        continue
+                    self.numara_mapping[row[1].strip()] = row[0].strip()
+            print(f"{len(self.numara_mapping)} numaralama eşleşmesi yüklendi")
             return True
         except Exception as e:
-            print(f"⚠ Numara mapping yüklenemedi: {e}")
+            print(f"Numara mapping yüklenemedi: {e}")
             return False
     
-    def parse_ppd_file(self, file_path):
+    def _is_daire_column(self, col_name: str) -> bool:
+        """Verilen sütun adının daire/alan verisi içerip içermediğine bakar."""
+        col = col_name.strip().upper()
+        if _DAIRE_COL_REGEX.match(col):
+            # yalnızca 1‑80 arası numaralardan oluşan gerçek daireler
+            num = int(_DAIRE_COL_REGEX.match(col).group(1))
+            return 1 <= num <= 80
+        # sabit ortak isimler
+        return any(keyword in col for keyword in _ORTAK_KEYWORDS)
+
+    def _normalize_daire_name(self, col_name: str) -> str:
+        """Hüc dergisindeki gibi orijinal sütun adını döner (boş bırakma yok)."""
+        return col_name.strip()
+
+    def parse_ppd_file(self, file_path: Union[str, Path]) -> pd.DataFrame:
+        """PPD CSV dosyasını DataFrame'e dönüştürür ve toplamları hesaplar.
+
+        * Pandas kullanarak tüm sayı dönüşümlerini vektörize eder,
+          böylece düşük uçlu CPU'larda bile hızlı çalışır.
+        * `DAIRE` önekli sütunları bulur ve sonra saatlik değerleri toplar.
         """
-        PPD dosyasını raw olarak parse et
-        Format:
-        - Satır 1-6: Başlık/metadata
-        - Satır 7: Daire adları (DAIRE 5A;DAIRE 5B;...)
-        - Satır 8+: Saatlik veriler
-        """
-        print(f"📂 PPD dosyası parslanıyor: {file_path}")
-        
-        with open(file_path, 'r', encoding='utf-8-sig') as f:
-            lines = f.readlines()
-        
-        # Satır 7'den daire adlarını al - TÜM sütunları oku, sonra filtrele
-        daire_line = lines[6]  # 0-indexed, satır 7 = satır 6
-        all_columns = [x.strip() for x in daire_line.split(';')]
-        
-        # Tüm sütunlardan daire/alan adlarını al - KESIN MATCH (7 != 70, 7 != 7D vb.)
-        daire_names = []
-        daire_column_indices = []  # Orijinal dosyadaki hangi sütun indexi
-        
-        for col_idx, col_name in enumerate(all_columns):  # Baştan başla, index 0'dan
-            col_upper = col_name.upper().strip()
-            
-            # "DAIRE X" formatında ve KESIN MATCH
-            if col_upper.startswith('DAIRE '):
-                # DAIRE numarasını çıkar (DAIRE 7A -> "7A")
-                daire_num_part = col_upper.replace('DAIRE ', '').strip()
-                
-                # Geçerli formatlar: DAIRE 1-80 (ve alt birimleri A,B,C,D,E,F)
-                # Örn: DAIRE 7, DAIRE 7A, DAIRE 7B, DAIRE 7C, ... ama NOT DAIRE 70
-                import re
-                match = re.match(r'^(\d+)([A-F])?$', daire_num_part)
-                if match:
-                    daire_no = int(match.group(1))
-                    # Sadece 1-80 arası daireleri al (70+ değil, 7 ve alt birimler yes)
-                    if 1 <= daire_no <= 80:
-                        daire_names.append(col_name)
-                        daire_column_indices.append(col_idx)
-            elif any(x in col_upper for x in ['LOBI', 'YONETIM', 'FITNESS', 'RES', 'BAYBAYAN', 'MUTFAK', 'P.O']):
-                daire_names.append(col_name)
-                daire_column_indices.append(col_idx)
-        
-        print(f"✓ {len(daire_names)} alan bulundu: {daire_names}")
-        
-        # Satır 8'den itibaren saatlik verileri al
-        data_lines = lines[7:]  # Satır 8 ve sonrası
-        
-        # Daire bazlı toplam oluştur
-        daire_totals = {name: 0 for name in daire_names}
-        
-        for i, line in enumerate(data_lines):
-            values = line.strip().split(';')
-            
-            # Doğru sütunlardan değerleri topla
-            for daire_idx, col_idx in enumerate(daire_column_indices):
-                if col_idx < len(values):
-                    try:
-                        value = values[col_idx]
-                        val = float(value) if value and value != '-' else 0
-                        if val > 0:  # Negatif/hata değerleri atla
-                            daire_totals[daire_names[daire_idx]] += val
-                    except:
-                        pass
-        
-        # Sonuçları DataFrame'e çevir
-        results = []
-        for name, total in daire_totals.items():
-            daire_no = self.extract_daire_number(name)
-            daire_type = self.get_daire_type(name)
-            
-            results.append({
+        print(f"PPD dosyası işleniyor: {file_path}")
+        # pandas hızlı okuma
+        raw = pd.read_csv(file_path, sep=';', header=6, encoding='utf-8-sig', low_memory=False)
+
+        # sadece daire/ortak sütunları seç
+        daire_cols = [c for c in raw.columns if self._is_daire_column(c)]
+        if not daire_cols:
+            raise ValueError("PPD dosyasında daire sütunu bulunamadı")
+        print(f"{len(daire_cols)} sütun seçildi")
+
+        # tüm değerleri sayıya çevir, eksikler 0 olsun
+        df_vals = raw[daire_cols].apply(pd.to_numeric, errors='coerce').fillna(0)
+        totals: pd.Series = df_vals.sum(axis=0)
+
+        # sonuç tablosunu oluştur
+        records: List[Dict[str, Any]] = []
+        for col, tot in totals.items():
+            name = self._normalize_daire_name(col)
+            num = self.extract_daire_number(name)
+            typ = self.get_daire_type(name)
+            records.append({
                 'DAİRE_ADI': name,
-                'DAİRE_NO': daire_no,
-                'TİP': daire_type,
-                'AYLIK_TUKETIM_WH': total,
-                'AYLIK_TUKETIM_KWH': total / 1000
+                'DAİRE_NO': num,
+                'TİP': typ,
+                'AYLIK_TUKETIM_WH': tot,
+                'AYLIK_TUKETIM_KWH': tot / 1000,
             })
-        
-        df = pd.DataFrame(results)
-        
-        # Daire numarasına göre grupla ve topla
-        # LOBI, YONETIM, FITNESS vb. ORTAK alanlar tek başına kalsın
-        df_ortak = df[df['TİP'] == 'ORTAK'].copy()
-        df_suit = df[df['TİP'] == 'SÜİT'].copy()
-        
-        # SÜİT'ler daire numarasına göre topla
-        if len(df_suit) > 0:
-            grouped = df_suit.groupby('DAİRE_NO').agg({
-                'AYLIK_TUKETIM_WH': 'sum',
-                'AYLIK_TUKETIM_KWH': 'sum'
-            }).reset_index()
+
+        df = pd.DataFrame(records)
+
+        # suit dairelerini numaraya göre grupla (ortaklar zaten ayrı)
+        df_ortak = df[df['TİP'] == 'ORTAK']
+        df_suit = df[df['TİP'] == 'SÜİT']
+        if not df_suit.empty:
+            grouped = df_suit.groupby('DAİRE_NO', as_index=False)[
+                ['AYLIK_TUKETIM_WH', 'AYLIK_TUKETIM_KWH']
+            ].sum()
             grouped['DAİRE_ADI'] = 'DAIRE ' + grouped['DAİRE_NO'].astype(str)
             grouped['TİP'] = 'SÜİT'
-            grouped = grouped[['DAİRE_ADI', 'DAİRE_NO', 'TİP', 'AYLIK_TUKETIM_WH', 'AYLIK_TUKETIM_KWH']]
-            
-            # ORTAK ve SÜİT'leri birleştir
             df = pd.concat([grouped, df_ortak], ignore_index=True)
         else:
-            df = df_ortak
-        
-        # ESKİ_NUMARA mapping'i ekle (varsa)
+            df = df_ortak.copy()
+
         if self.numara_mapping:
-            df['ESKİ_NUMARA'] = df['DAİRE_NO'].astype(str).map(self.numara_mapping)
-            # ESKİ_NUMARA olmayanlara boş koy
-            df['ESKİ_NUMARA'] = df['ESKİ_NUMARA'].fillna('')
+            df['ESKİ_NUMARA'] = df['DAİRE_NO'].astype(str).map(self.numara_mapping).fillna('')
         else:
             df['ESKİ_NUMARA'] = ''
-        
-        print(f"✓ {len(df)} alan verileri işlendi (daire bazlı toplandı)")
-        
+
+        print(f"{len(df)} kayıt hazır")
         return df
     
     def extract_daire_number(self, daire_name):
